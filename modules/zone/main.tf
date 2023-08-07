@@ -1,3 +1,14 @@
+locals {
+  zone_vpcs = flatten([
+    for zone_key, zone in aws_route53_zone.this : {
+      for vpc in zone.vpc : "${zone_key}-${vpc.vpc_id}" => {
+        zone_id = zone.zone_id,
+        vpc_id  = vpc.vpc_id
+      }
+    }
+  ])[0]
+}
+
 resource "aws_route53_zone" "this" {
   for_each = { for k, v in var.zones : k => v if var.create }
 
@@ -23,15 +34,8 @@ resource "aws_route53_zone" "this" {
 }
 
 resource "aws_route53_vpc_association_authorization" "this" {
-  for_each = try(tolist(lookup(each.value, "vpc", [])), [lookup(each.value, "vpc", {})])
-  vpc_id  = each.value.vpc_id
-  zone_id = aws_route53_zone.this.zone_id
-}
+  for_each = local.zone_vpcs
 
-#resource "aws_route53_zone_association" "example" {
-#  //Add
-#  provider = "aws.alternate"
-#
-#  vpc_id  = aws_route53_vpc_association_authorization.this.vpc_id
-#  zone_id = aws_route53_vpc_association_authorization.this.zone_id
-#}
+  zone_id    = each.value.zone_id
+  vpc_id     = each.value.vpc_id
+}
